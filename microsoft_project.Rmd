@@ -67,24 +67,24 @@ df[1, "num"] = 11
 ```
 
 ```{r NYC-Graph}
-nyc <- nyc_data %>%
-  filter(mdy >= "2007-01-01", mdy <= "2017-12-31") %>% 
-  group_by(OfficerID, ComplaintID) %>%
-  summarize() %>%
-  summarize(num_of_complaints = n()) %>%
-  arrange(num_of_complaints)
 
-total_complaints <- sum(nyc$num_of_complaints)
+nyc <- nyc_data %>%
+  filter(mdy >= "2007-01-01", mdy <= "2017-12-31") %>%  # only the period between 2007-2017
+  group_by(OfficerID, ComplaintID) %>%
+  summarize() %>%                                       # count one officer per complaint 
+  summarize(num_of_complaints = n()) %>%                # count the total complaints per officer
+  arrange(num_of_complaints)                            # order in ascending order
+
+total_complaints <- sum(nyc$num_of_complaints)  # sum of all complaints, used to obtain the percents for each bin
 
 nyc <- nyc %>%
-  mutate(bin_number = 1:nrow(nyc))
+  mutate(bin_number = 1:nrow(nyc))  # create a new column to place the bin number 1 to 10
 
-summary(nyc)
+bin <- 1    # keep track of the current bin
+bin_size = ceiling(nrow(nyc) / 10)  # the size of each bin
+count <- 0  # keep track of the bin's count, when it is equal to bin_size then start over
 
-bin <- 1
-bin_size = ceiling(nrow(nyc) / 10)
-count <- 0
-
+# Go through all the rows in the table and place each officer in the corresponding bin
 for(n in 1:nrow(nyc)){
   nyc[n, "bin_number"] = bin
   count <- count + 1
@@ -94,10 +94,14 @@ for(n in 1:nrow(nyc)){
   }
 }
 
+# collapse the table to only 10 rows that represent the bins
+# for each bin find the percentage of the complaints that the bin has
+# compared to the total
 nyc <- nyc %>%
   group_by(bin_number) %>%
   summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
 
+# graph the deciles (bins) and their percentages
 nyc %>%
   ggplot()+
   geom_histogram(aes(x = bin_number, y = total_complaints), stat="identity")+
