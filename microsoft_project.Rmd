@@ -1,0 +1,114 @@
+---
+title: "Microsoft Project - Analysis of Complaints Against the Police"
+author: "Nikola Baci"
+date: "6/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(lubridate)
+```
+
+# Microsoft Project Week 4
+## Small share of US police draw third of complaints in big cities
+### Replicating the analysis made by the FINANCIAL TIMES
+#### https://www.ft.com/content/141182fc-7727-4af8-a555-5418fa46d09e
+
+```{r NYC-Data}
+# data link: https://github.com/new-york-civil-liberties-union/NYPD-Misconduct-Complaint-Database-Updated
+nyc_data <- read.csv("data/nyc_misconduct_complaint_dataset.csv")
+nyc_data <-  nyc_data %>%
+  mutate(mdy = mdy(CloseDate))
+
+```
+
+```{r Explore NYC-Data}
+# number of unique allegations
+cat("Number of alligations = ", length(unique(nyc_data$AllegationID)), "\n")
+
+# number of unique complaints
+cat("Number of complaints = ", length(unique(nyc_data$ComplaintID)), "\n")
+
+# Note: Some complaints include several allegations for the same officer
+# or for a number of officers
+
+
+# Goal: Bucket each officer in one of the 10 buckets by the number of complaints.
+# TODO: Figure out a way to count the number of complaints for each officer.
+# Note: The names are not unique or sufficient to be used to identify each officer.
+# Update: It seems like the OfficerID columns represents each officer uniquely.
+```
+
+```{r Chicago-Data}
+# data link: https://github.com/invinst/chicago-police-data
+chicago_data <- read.csv("complaints-accused_2000-2018_2018-03.csv")
+```
+
+```{r Explore Chicago-Data}
+
+```
+
+```{r Toy-Example}
+df <- data.frame(a = c(123, 123, 123, 123),
+                 b = c(1, 2, 2, 3))
+
+df <- df %>%
+  group_by(a, b) %>%
+  summarize() %>%
+  ungroup() %>%
+  group_by(a) %>%
+  summarize(count = n())
+
+df <- df %>%
+  mutate(num = 1:nrow(df))
+
+df[1, "num"] = 11
+```
+
+```{r NYC-Graph}
+nyc <- nyc_data %>%
+  filter(mdy >= "2007-01-01", mdy <= "2017-12-31") %>% 
+  group_by(OfficerID, ComplaintID) %>%
+  summarize() %>%
+  summarize(num_of_complaints = n()) %>%
+  arrange(num_of_complaints)
+
+total_complaints <- sum(nyc$num_of_complaints)
+
+nyc <- nyc %>%
+  mutate(bin_number = 1:nrow(nyc))
+
+summary(nyc)
+
+bin <- 1
+bin_size = ceiling(nrow(nyc) / 10)
+count <- 0
+
+for(n in 1:nrow(nyc)){
+  nyc[n, "bin_number"] = bin
+  count <- count + 1
+  if(count == bin_size){
+    count <- 0
+    bin <- bin + 1
+  }
+}
+
+nyc <- nyc %>%
+  group_by(bin_number) %>%
+  summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
+
+nyc %>%
+  ggplot()+
+  geom_histogram(aes(x = bin_number, y = total_complaints), stat="identity")+
+  scale_x_continuous(breaks = seq(1, 10, 1))+
+  xlab("Decile")+
+  ylab("Percent of total complaints")
+```
+
+
+
+
+
+
+
