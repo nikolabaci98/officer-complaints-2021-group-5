@@ -1,118 +1,176 @@
 ---
-title: "Microsoft Project - Analysis of Complaints Against the Police"
+title: "Data Science Summer School - MSR NYC"
 author: "Nikola Baci"
 date: "6/21/2021"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    theme: united
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
 library(tidyverse)
 library(lubridate)
 ```
 
-# Microsoft Project Week 4
 ## Small share of US police draw third of complaints in big cities
-### Replicating the analysis made by the FINANCIAL TIMES
-#### https://www.ft.com/content/141182fc-7727-4af8-a555-5418fa46d09e
+#### Article by [FINANCIAL TIMES](https://www.ft.com/content/141182fc-7727-4af8-a555-5418fa46d09e)
 
-```{r NYC-Data}
-# data link: https://github.com/new-york-civil-liberties-union/NYPD-Misconduct-Complaint-Database-Updated
+## Overview of the article
+TODO: A summary of the article (I wish we could use the summary() function)
+
+## Workflow
+To ensure a smooth reading and quick understanding of the notebook, please take a
+moment to get familiar with the structure of the notebook.
+
+In the first section we read all the files for each of the cities.
+Then for each city we do the following:
+1. Data exploration and data wrangling - in order to graph the deciles of each city, we need to 
+modify the data and construct new tables to aid in achieving our goals.
+2. Plot the decies for each city
+
+## Data
+
+Data for NYC can be found [here](https://github.com/new-york-civil-liberties-union/NYPD-Misconduct-Complaint-Database-Updated).
+
+Data for Chicago can be found [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-accused.csv.gz), [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-complaints.csv.gz) and [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/officer-filed-complaints__2017-09.csv.gz).
+
+Data for Philadephia can be found [here]() and [here]().
+
+```{r Data}
 nyc_data <- read.csv("data/nyc_misconduct_complaint_dataset.csv")
-nyc_data <-  nyc_data %>%
-  mutate(mdy = mdy(CloseDate))
+
+chicago_complaints_accused <- read.csv("data/complaints-accused.csv")
+
+chicago_complaints_complaints <- read.csv("data/complaints-complaints.csv")
+
+chicago_complaints_by_officers <- read.csv("data/officer-filed-complaints__2017-09.csv")
 
 ```
 
-```{r Explore NYC-Data}
-# number of unique allegations
-cat("Number of alligations = ", length(unique(nyc_data$AllegationID)), "\n")
+## NYC 
 
-# number of unique complaints
-cat("Number of complaints = ", length(unique(nyc_data$ComplaintID)), "\n")
+In the next chuck of code we create the necessary table to help us in creating the 
+graph for NYC data.
 
-# Note: Some complaints include several allegations for the same officer
-# or for a number of officers
-
+### Data Wrangling
+```{r NYC-Data-Wrangling, warning=FALSE}
 
 # Goal: Bucket each officer in one of the 10 buckets by the number of complaints.
-# TODO: Figure out a way to count the number of complaints for each officer.
+# Note: Some complaints include several allegations for the same officer
+# or for a number of officers
 # Note: The names are not unique or sufficient to be used to identify each officer.
-# Update: It seems like the OfficerID columns represents each officer uniquely.
-```
 
-```{r Chicago-Data}
-# data link: https://github.com/invinst/chicago-police-data
-chicago_data <- read.csv("complaints-accused_2000-2018_2018-03.csv")
-```
-
-```{r Explore Chicago-Data}
-
-```
-
-```{r Toy-Example}
-df <- data.frame(a = c(123, 123, 123, 123),
-                 b = c(1, 2, 2, 3))
-
-df <- df %>%
-  group_by(a, b) %>%
-  summarize() %>%
-  ungroup() %>%
-  group_by(a) %>%
-  summarize(count = n())
-
-df <- df %>%
-  mutate(num = 1:nrow(df))
-
-df[1, "num"] = 11
-```
-
-```{r NYC-Graph}
-
-nyc <- nyc_data %>%
-  filter(mdy >= "2007-01-01", mdy <= "2017-12-31") %>%  # only the period between 2007-2017
+nyc_by_num_complaints <- nyc_data %>%
+  mutate(ReceivedDate = mdy(ReceivedDate)) %>% #convert from char to Date type
+  filter(ReceivedDate >= "2007-01-01", ReceivedDate <= "2017-12-31") %>%  # get only the period between 2007-2017
   group_by(OfficerID, ComplaintID) %>%
   summarize() %>%                                       # count one officer per complaint 
   summarize(num_of_complaints = n()) %>%                # count the total complaints per officer
   arrange(num_of_complaints)                            # order in ascending order
 
-total_complaints <- sum(nyc$num_of_complaints)  # sum of all complaints, used to obtain the percents for each bin
+total_complaints <- sum(nyc_by_num_complaints$num_of_complaints)  # sum of all complaints, used to obtain the percents for each bin
 
-nyc <- nyc %>%
-  mutate(bin_number = 1:nrow(nyc))  # create a new column to place the bin number 1 to 10
-
-bin <- 1    # keep track of the current bin
-bin_size = ceiling(nrow(nyc) / 10)  # the size of each bin
-count <- 0  # keep track of the bin's count, when it is equal to bin_size then start over
-
-# Go through all the rows in the table and place each officer in the corresponding bin
-for(n in 1:nrow(nyc)){
-  nyc[n, "bin_number"] = bin
-  count <- count + 1
-  if(count == bin_size){
-    count <- 0
-    bin <- bin + 1
-  }
-}
+nyc_by_num_complaints <- nyc_by_num_complaints %>%
+  mutate(bin_number = 1:nrow(nyc_by_num_complaints)) %>%  # create a new column to place the bin number 1 to 10
+  mutate(bin_number = ntile(bin_number, 10)) # use the ntile function to put rows in the right bins
 
 # collapse the table to only 10 rows that represent the bins
 # for each bin find the percentage of the complaints that the bin has
 # compared to the total
-nyc <- nyc %>%
+nyc_by_num_complaints <- nyc_by_num_complaints %>%
+  group_by(bin_number) %>%
+  summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
+```
+### Graphing
+Graph the deciles for NYC police complaint
+
+```{r NYC-Graph}
+
+nyc_by_num_complaints <-  nyc_by_num_complaints %>%
+  mutate(color = c(rep(0, 9), 1)) # to help with the bar colors
+
+# graph the deciles (bins) and their percentages
+nyc_by_num_complaints %>%
+  ggplot()+
+  geom_histogram(aes(x = bin_number, y = total_complaints, fill = color), stat="identity", show.legend = F)+
+  scale_x_continuous(breaks = seq(1, 10, 1)) + #set x-axis to go up by 1
+  xlab("Decile")+
+  ylab("Percent of total complaints") +
+  theme(panel.background = element_rect(fill = "white", colour = "white",
+                                size = 2, linetype = "solid"), # set background to white
+          panel.grid.major.y = element_line(size = 0.5, linetype = 'solid',
+                                colour = "gray")) # only horizontal marks
+  
+```
+
+## Chicago 
+
+### Data Wrangling
+Now we proceed to working with the Chicago data and obtraining the tables to
+draw the bars.
+
+```{r Chicago-Data-Wrangling}
+
+chicago_accused_selected <-  chicago_complaints_accused %>%
+  select(UID, cr_id, link_UID) #select only 3 out of the 10 columns
+
+chicago_complaints_selected <- chicago_complaints_complaints %>%
+  select(cr_id, complaint_date, closed_date) %>% #select only 3 out of the 11 columns
+  mutate(complaint_date = ymd(complaint_date), closed_date = ymd(closed_date)) #turn char dates to Date-types
+
+chicago_officers_selected <- chicago_complaints_by_officers %>%
+  mutate(flag = 1, cr_id = as.character(cr_id)) #add a flag column, will help in keeping only the citizens complaints
+
+#create a table that has three essential columns: officer id, complaint id, and data of complaint
+chicago_complaints <- inner_join(chicago_accused_selected, chicago_complaints_selected, by="cr_id") %>%
+  filter(complaint_date >= "2007-01-01",  closed_date <= "2017-12-31") #choose only period 2007-2017
+
+#join the above table with the complaints filed by officers
+chicago_complaints_citizens <- left_join(chicago_complaints, chicago_officers_selected, by="cr_id")%>%
+  filter(is.na(flag), !is.na(closed_date)) #remove complaints that are done by officers or that are not closed yet
+
+```
+### Graphing
+Now we can graph the decile bars. 
+Note: the data includes the only the citizen complaints that were registered on or after
+01/01/2007 and were closed before 01/01/2018.
+
+```{r Explore Chicago-Graph}
+#Note: the code is the same as in NYC-Graph above, the only thing that changes is the
+#data table in the next line and the variables to indicate that this data is for Chicago.
+chicago_by_num_complaints <- chicago_complaints_citizens %>%
+  group_by(UID, cr_id) %>%
+  summarize() %>%
+  summarize(num_of_complaints = n()) %>% 
+  arrange(num_of_complaints)
+
+
+total_complaints <- sum(chicago_by_num_complaints$num_of_complaints)  
+
+chicago_by_num_complaints <- chicago_by_num_complaints %>%
+  mutate(bin_number = 1:nrow(chicago_by_num_complaints)) %>%  
+  mutate(bin_number = ntile(bin_number, 10))
+
+chicago_by_num_complaints <- chicago_by_num_complaints %>%
   group_by(bin_number) %>%
   summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
 
-# graph the deciles (bins) and their percentages
-nyc %>%
+chicago_by_num_complaints <-  chicago_by_num_complaints %>%
+  mutate(color = c(rep(0, 9), 1))
+
+chicago_by_num_complaints %>%
   ggplot()+
-  geom_histogram(aes(x = bin_number, y = total_complaints), stat="identity")+
+  geom_histogram(aes(x = bin_number, y = total_complaints, fill = color), stat="identity", show.legend = F)+
   scale_x_continuous(breaks = seq(1, 10, 1))+
   xlab("Decile")+
-  ylab("Percent of total complaints")
+  ylab("Percent of total complaints") +
+  theme(panel.background = element_rect(fill = "white", colour = "white",
+                                size = 2, linetype = "solid"),
+          panel.grid.major = element_line(size = 0.5, linetype = 'solid',
+                                colour = "gray"),
+          panel.grid.major.x = element_blank())
 ```
-
-
-
-
 
 
 
