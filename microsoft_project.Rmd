@@ -40,11 +40,11 @@ Data for Philadephia can be found [here]() and [here]().
 ```{r Data}
 nyc_data <- read.csv("data/nyc_misconduct_complaint_dataset.csv")
 
-chicago_complaints_accused <- read.csv("data/complaints-accused.csv")
+chicago_complaints_accused <- read.csv("data/chicago_complaints_accused.csv")
 
-chicago_complaints_complaints <- read.csv("data/complaints-complaints.csv")
+chicago_complaints_complaints <- read.csv("data/chicago_complaints_complaints.csv")
 
-chicago_complaints_by_officers <- read.csv("data/officer-filed-complaints__2017-09.csv")
+chicago_complaints_by_officers <- read.csv("data/chicago_officer_filed_complaints.csv")
 
 ```
 
@@ -107,7 +107,7 @@ nyc_by_num_complaints %>%
 ## Chicago 
 
 ### Data Wrangling
-Now we proceed to working with the Chicago data and obtraining the tables to
+Now we proceed to working with the Chicago data and obtaining the tables to
 draw the bars.
 
 ```{r Chicago-Data-Wrangling}
@@ -120,17 +120,18 @@ chicago_complaints_selected <- chicago_complaints_complaints %>%
   mutate(complaint_date = ymd(complaint_date), closed_date = ymd(closed_date)) #turn char dates to Date-types
 
 chicago_officers_selected <- chicago_complaints_by_officers %>%
-  mutate(flag = 1, cr_id = as.character(cr_id)) #add a flag column, will help in keeping only the citizens complaints
+  mutate(cr_id = as.character(cr_id)) #add a flag column, will help in keeping only the citizens complaints
 
 #create a table that has three essential columns: officer id, complaint id, and data of complaint
 chicago_complaints <- inner_join(chicago_accused_selected, chicago_complaints_selected, by="cr_id") %>%
   filter(complaint_date >= "2007-01-01",  closed_date <= "2017-12-31") #choose only period 2007-2017
 
-#join the above table with the complaints filed by officers
-chicago_complaints_citizens <- left_join(chicago_complaints, chicago_officers_selected, by="cr_id")%>%
-  filter(is.na(flag), !is.na(closed_date)) #remove complaints that are done by officers or that are not closed yet
+#remove complaints that are done by officers or that are not closed yet
+chicago_complaints_citizens <- anti_join(chicago_complaints, chicago_officers_selected, by="cr_id") %>%
+   filter(!is.na(closed_date))
 
 ```
+
 ### Graphing
 Now we can graph the decile bars. 
 Note: the data includes the only the citizen complaints that were registered on or after
@@ -173,4 +174,114 @@ chicago_by_num_complaints %>%
 ```
 
 
+## NYC Complaints by officer gender
 
+```{r NYC-Complaints-Gender}
+head(nyc_data)
+
+nyc_complaint_by_gender <- nyc_data %>%
+  mutate(ReceivedDate = mdy(ReceivedDate)) %>% #convert from char to Date type
+  filter(ReceivedDate >= "2007-01-01", ReceivedDate <= "2017-12-31") %>%  # get only the period between 2007-2017
+  group_by(OfficerID, ComplaintID, OfficerGender) %>%
+  summarize() %>% 
+  ungroup() %>%
+  group_by(OfficerID) %>%
+  summarize(num_of_complaints = n(), OfficerGender) %>%
+  ungroup()
+  
+#complaints by gender among all complaints
+total_complaints <- sum(nyc_complaint_by_gender$num_of_complaints)
+nyc_complaint_by_gender %>%
+  group_by(OfficerGender) %>%
+  summarize(percent = sum(num_of_complaints) / total_complaints) %>% 
+  ggplot() +
+  geom_bar(aes(x = OfficerGender, y = percent), stat = "identity") +
+  scale_y_continuous(breaks = seq(0, 1, 0.1))
+
+#complaints by gender only bin 10
+nyc_complaint_by_gender <- nyc_complaint_by_gender %>%
+  mutate(bin_number = 1:nrow(nyc_complaint_by_gender)) %>% # create a new column to place the bin number 1 to 10
+  mutate(bin_number = ntile(bin_number, 10)) %>%
+  filter(bin_number == 10)
+
+bin_10_total_complaints <- sum(nyc_complaint_by_gender$num_of_complaints)
+
+nyc_complaint_by_gender %>%
+  group_by(OfficerGender) %>%
+  summarize(percent = sum(num_of_complaints) / bin_10_total_complaints) %>% 
+  ggplot() +
+  geom_bar(aes(x = OfficerGender, y = percent), stat = "identity") +
+  scale_y_continuous(breaks = seq(0, 1, 0.1))
+```
+
+## Complaints by officer race
+
+In this section we will analyze the race of the officers and what proportion of
+the complaints each race receives. 
+Note: Please keep in mind that the we need more data to reach a conclusion. Things 
+to keep in mind is the distribution of race in the police force as well as population
+of these cities. 
+Hypothetical example, if NYC population is composed of 80% white and 
+the police force has the same proportion of white officers, then it is more likely that
+the blow bars will show an overwhelming amount of complaints towards white officers.
+
+```{r NYC-Complaints-By-Officer-Race}
+nyc_complaints_by_officer_race <- nyc_data %>%
+  mutate(ReceivedDate = mdy(ReceivedDate)) %>% 
+  filter(ReceivedDate >= "2007-01-01", ReceivedDate <= "2017-12-31") %>%  
+  group_by(OfficerID, ComplaintID, OfficerRace) %>%
+  summarize() %>%
+  ungroup()
+
+nyc_complaints_by_officer_race <- nyc_complaints_by_officer_race %>%
+  group_by(OfficerRace) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count / nrow(nyc_complaints_by_officer_race) * 100)
+
+nyc_complaints_by_officer_race %>%
+  ggplot() +
+  geom_bar(aes(x= OfficerRace, y = percent), stat = "identity", fill = "brown") +
+  labs(title = "New York 2007-2017 complaints by officer race") +
+  xlab("Officer Race") +
+  ylab("Percent") +
+  theme(panel.background = element_rect(fill = "white", colour = "white",
+                                size = 2, linetype = "solid"),
+          panel.grid.major = element_line(size = 0.5, linetype = 'solid',
+                                colour = "gray"),
+          panel.grid.major.x = element_blank())
+```
+
+```{r Chicago-Complaints-By-Officer-Race}
+chicago_officer_profiles <- read.csv("data/chicago_officer_profile.csv")
+chicago_officer_profiles <- chicago_officer_profiles %>%
+  select(UID, race)
+
+chicago_complaints_by_offcier_race <- left_join(chicago_complaints, chicago_officer_profiles, by="UID") %>%
+  filter(race != "") #there is one officer whose race is unknown
+
+chicago_complaints_by_offcier_race <- chicago_complaints_by_offcier_race %>%
+  group_by(UID, cr_id, race) %>%
+  summarize() %>%
+  ungroup()
+
+chicago_complaints_by_offcier_race <- chicago_complaints_by_offcier_race %>%
+  group_by(race) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count / nrow(chicago_complaints_by_offcier_race) * 100) %>%
+  mutate(race = factor(race)) %>%
+  arrange(percent)
+
+chicago_complaints_by_offcier_race %>%
+  ggplot() +
+  geom_bar(aes(x = fct_reorder(race, percent), y = percent), stat = "identity", fill = "brown") +
+  labs(title = "Chicago 2007-2017 complaints by officer race") +
+  xlab("Officer Race") +
+  ylab("Percent") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  theme(panel.background = element_rect(fill = "white", colour = "white",
+                                size = 2, linetype = "solid"),
+          panel.grid.major = element_line(size = 0.5, linetype = 'solid',
+                                colour = "gray"),
+          panel.grid.major.x = element_blank())
+```
+```{r NYC-}
