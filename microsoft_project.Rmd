@@ -42,7 +42,7 @@ cat("Number of complaints = ", length(unique(nyc_data$ComplaintID)), "\n")
 
 ```{r Chicago-Data}
 # data link: https://github.com/invinst/chicago-police-data
-chicago_data <- read.csv("complaints-accused_2000-2018_2018-03.csv")
+chicago_data <- read.csv("data/chicago_misconduct_complaint_dataset.csv")
 ```
 
 ```{r Explore Chicago-Data}
@@ -108,11 +108,115 @@ nyc %>%
   scale_x_continuous(breaks = seq(1, 10, 1))+
   xlab("Decile")+
   ylab("Percent of total complaints")
+
+```
+
+
+# This part of our project includes Philadelphia data from 2015-2021 including pending comlaints 
+
+
+
+```{r Philly - Data}
+
+# Links to the datasets:
+
+# OPen-Philly-Data
+# https://www.opendataphilly.org/dataset/police-complaints/resource/e7477284-0045-4f37-8aeb-182616f736e8
+# https://www.opendataphilly.org/dataset/police-complaints/resource/7f7d472f-c49c-4364-b6e0-3a079e6b7d7f
+
+# Sam Learner GitHub
+# https://raw.githubusercontent.com/sdl60660/philly_police_complaints/master/raw_data/ppd_complaints.csv
+# https://raw.githubusercontent.com/sdl60660/philly_police_complaints/master/raw_data/ppd_complaints_7-18.csv
+# https://raw.githubusercontent.com/sdl60660/philly_police_complaints/master/raw_data/ppd_complaint_disciplines.csv
+
+
+
+### two Open-Data-Philly files clean up
+open_philly_complaints <- read.csv('data/ppd_complaints_open_philly.csv',header=T) %>%
+  subset(select=-summary) %>%
+  mutate(date_received = as.Date(date_received))
+
+
+open_philly_finding <- read.csv('data/ppd_complaint_disciplines_open_philly.csv',header=T) %>% na.omit()
+
+### Joined Open Philly Data
+open_philly_data <- open_philly_finding %>% left_join(open_philly_complaints,by='complaint_id') %>%
+  filter(date_received >= '2015-04-01', date_received < '2021-04-01')
+
 ```
 
 
 
+```{r}
+### ### three Sam-Data-Philly files clean up
+
+sam_philly_complaints <- read.csv('data/philly_complaints_dataset_sam_cap_number.csv', header = T) %>%
+  mutate(date_received = as.Date(date_received))
+  
+
+# rename columns from sam_philly_complaints data set 
+sam_philly_complaints <- rename(sam_philly_complaints, complaint_id = cap_number, district_occurrence = dist_occurrence)
+
+# Philly Sam finding data: complaint_id, date_received
+sam_philly_findings <- read.csv('data/philly_complaints_dataset_sam.csv',header=T) %>% #na.omit() %>%
+  mutate(date_received = mdy(date_received)) %>% # change the date format here 
+  select(-shortened_summary)
 
 
+# Philly Sam complaints disciplines data: complaint_id, officer_id
+sam_philly_disciplines <- read.csv('data/philly_complaints_disciplines_sam.csv') %>%
+  select(complaint_id, officer_id)
 
+# Left join to  sam_philly_complaints and sam_philly_findings
+joined_sam_philly_data <- bind_rows(sam_philly_complaints, sam_philly_findings) %>%
+  left_join(sam_philly_disciplines, by="complaint_id") %>%
+  filter(date_received >= "2015-01-01", ! is.na(officer_id))
 
+```
+
+```{r Philly- Graph}
+# join the third Sam data set, it is needed because it contains officer_id
+joined_sam_and_open_philly_data <- bind_rows(open_philly_data, joined_sam_philly_data)
+  
+
+philly <- joined_sam_and_open_philly_data %>%
+  group_by(officer_id, complaint_id) %>%
+  summarize() %>%                                       # count one officer per complaint 
+  summarize(num_of_complaints = n()) %>%                # count the total complaints per officer
+  arrange(num_of_complaints)                            # order in ascending order
+
+total_complaints <- sum(philly$num_of_complaints)  # sum of all complaints, used to obtain the percents for each bin
+
+philly <- philly %>%
+  mutate(bin_number = 1:nrow(philly))  # create a new column to place the bin number 1 to 10
+
+bin <- 1    # keep track of the current bin
+bin_size = ceiling(nrow(philly) / 10)  # the size of each bin
+count <- 0  # keep track of the bin's count, when it is equal to bin_size then start over
+
+# Go through all the rows in the table and place each officer in the corresponding bin
+for(n in 1:nrow(philly)){
+  philly[n, "bin_number"] = bin
+  count <- count + 1
+  if(count == bin_size){
+    count <- 0
+    bin <- bin + 1
+  }
+}
+
+# collapse the table to only 10 rows that represent the bins
+# for each bin find the percentage of the complaints that the bin has
+# compared to the total
+philly <- philly %>%
+  group_by(bin_number) %>%
+  summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
+
+# graph the deciles (bins) and their percentages
+philly %>%
+  ggplot()+
+  geom_histogram(aes(x = bin_number, y = total_complaints), stat="identity")+
+  scale_x_continuous(breaks = seq(1, 10, 1))+
+  xlab("Decile")+
+  ylab("Percent of total complaints")
+
+```
