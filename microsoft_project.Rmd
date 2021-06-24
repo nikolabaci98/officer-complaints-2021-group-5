@@ -35,7 +35,7 @@ Data for NYC can be found [here](https://github.com/new-york-civil-liberties-uni
 
 Data for Chicago can be found [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-accused.csv.gz), [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-complaints.csv.gz) and [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/officer-filed-complaints__2017-09.csv.gz).
 
-Data for Philadephia can be found [here]() and [here]().
+Data for Philadelphia can be found [1](), [2](), [3](), [4]() and [5]().
 
 ```{r Data}
 nyc_data <- read.csv("data/nyc_misconduct_complaint_dataset.csv")
@@ -46,6 +46,16 @@ chicago_complaints_complaints <- read.csv("data/chicago_complaints_complaints.cs
 
 chicago_complaints_by_officers <- read.csv("data/chicago_officer_filed_complaints.csv")
 
+philly_open_data_1 <- read.csv('data/ppd_complaints_open_philly.csv',header=T) 
+
+philly_open_data_2 <- read.csv('data/ppd_complaint_disciplines_open_philly.csv',header=T)
+
+philly_sam_1 <- read.csv('data/philly_complaints_dataset_sam_cap_number.csv', header = T) 
+
+philly_sam_2 <- read.csv('data/philly_complaints_dataset_sam.csv',header=T) 
+
+philly_sam_3 <- read.csv('data/philly_complaints_disciplines_sam.csv') 
+
 ```
 
 ## NYC 
@@ -54,7 +64,17 @@ In the next chuck of code we create the necessary table to help us in creating t
 graph for NYC data.
 
 ### Data Wrangling
-```{r NYC-Data-Wrangling, warning=FALSE}
+
+
+```{r NYC-Data-Wrangling}
+nyc_data <- nyc_data %>%
+  mutate(ReceivedDate = mdy(ReceivedDate)) %>% #convert from char to Date type
+  filter(ReceivedDate >= "2007-01-01", ReceivedDate <= "2017-12-31") #get only the period between 2007-2017
+```
+
+### Feature Engineering
+
+```{r NYC-Featuer-Engineering}
 
 # Goal: Bucket each officer in one of the 10 buckets by the number of complaints.
 # Note: Some complaints include several allegations for the same officer
@@ -62,8 +82,6 @@ graph for NYC data.
 # Note: The names are not unique or sufficient to be used to identify each officer.
 
 nyc_by_num_complaints <- nyc_data %>%
-  mutate(ReceivedDate = mdy(ReceivedDate)) %>% #convert from char to Date type
-  filter(ReceivedDate >= "2007-01-01", ReceivedDate <= "2017-12-31") %>%  # get only the period between 2007-2017
   group_by(OfficerID, ComplaintID) %>%
   summarize() %>%                                       # count one officer per complaint 
   summarize(num_of_complaints = n()) %>%                # count the total complaints per officer
@@ -131,13 +149,9 @@ chicago_complaints_citizens <- anti_join(chicago_complaints, chicago_officers_se
    filter(!is.na(closed_date))
 
 ```
+### Feature Engineering
 
-### Graphing
-Now we can graph the decile bars. 
-Note: the data includes the only the citizen complaints that were registered on or after
-01/01/2007 and were closed before 01/01/2018.
-
-```{r Explore Chicago-Graph}
+```{r Chicago-Feature-Engineering}
 #Note: the code is the same as in NYC-Graph above, the only thing that changes is the
 #data table in the next line and the variables to indicate that this data is for Chicago.
 chicago_by_num_complaints <- chicago_complaints_citizens %>%
@@ -145,7 +159,6 @@ chicago_by_num_complaints <- chicago_complaints_citizens %>%
   summarize() %>%
   summarize(num_of_complaints = n()) %>% 
   arrange(num_of_complaints)
-
 
 total_complaints <- sum(chicago_by_num_complaints$num_of_complaints)  
 
@@ -156,6 +169,16 @@ chicago_by_num_complaints <- chicago_by_num_complaints %>%
 chicago_by_num_complaints <- chicago_by_num_complaints %>%
   group_by(bin_number) %>%
   summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
+
+```
+
+### Graphing
+
+Now we can graph the decile bars. 
+Note: the data includes the only the citizen complaints that were registered on or after
+01/01/2007 and were closed before 01/01/2018.
+
+```{r Explore Chicago-Graph}
 
 chicago_by_num_complaints <-  chicago_by_num_complaints %>%
   mutate(color = c(rep(0, 9), 1))
@@ -172,7 +195,78 @@ chicago_by_num_complaints %>%
                                 colour = "gray"),
           panel.grid.major.x = element_blank())
 ```
+## Philadelphia
 
+### Data Wrangling
+
+```{r Philly-Data-Wrangling}
+
+philly_open_data_1 <- philly_open_data_1 %>%
+  subset(select=-summary) %>%
+  mutate(date_received = as.Date(date_received))
+
+philly_open_data_join <- left_join(philly_open_data_2, philly_open_data_1, by='complaint_id') %>%
+  filter(date_received >= '2015-04-01')
+
+philly_sam_1 <- philly_sam_1 %>%
+  mutate(date_received = as.Date(date_received))
+philly_sam_1 <-  rename(philly_sam_1, complaint_id = cap_number, district_occurrence = dist_occurrence)
+
+
+philly_sam_2 <- philly_sam_2 %>% 
+  mutate(date_received = mdy(date_received)) %>% # change the date format here 
+  select(-shortened_summary)
+
+
+philly_sam_3 <-  philly_sam_3%>%
+  select(complaint_id, officer_id)
+
+philly_data <- bind_rows(philly_sam_1, philly_sam_2) %>%
+  left_join(philly_sam_3, by="complaint_id") %>%
+  filter(date_received >= "2015-01-01", ! is.na(officer_id))
+
+```
+
+### Feature Engineering
+
+```{r Philly-Feature-Engineering}
+
+philly_by_num_complaints <- philly_data %>%
+  group_by(officer_id, complaint_id) %>%
+  summarize() %>%                                       
+  summarize(num_of_complaints = n()) %>%                
+  arrange(num_of_complaints)                            
+
+total_complaints <- sum(philly_by_num_complaints$num_of_complaints)  
+philly_by_num_complaints <- philly_by_num_complaints %>%
+  mutate(bin_number = 1:nrow(philly_by_num_complaints)) %>%  
+  mutate(bin_number = ntile(bin_number, 10)) 
+
+philly_by_num_complaints <- philly_by_num_complaints %>%
+  group_by(bin_number) %>%
+  summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
+```
+
+### Graphing
+
+```{r Philly-Graph}
+
+philly_by_num_complaints <-  philly_by_num_complaints %>%
+  mutate(color = c(rep(0, 9), 1))
+
+philly_by_num_complaints %>%
+  ggplot()+
+  geom_histogram(aes(x = bin_number, y = total_complaints, fill = color), stat="identity", show.legend = F)+
+  scale_x_continuous(breaks = seq(1, 10, 1))+
+  scale_y_continuous(breaks = seq(0, 30, 5))+
+  xlab("Decile")+
+  ylab("Percent of total complaints") +
+  theme(panel.background = element_rect(fill = "white", colour = "white",
+                                size = 2, linetype = "solid"),
+          panel.grid.major = element_line(size = 0.5, linetype = 'solid',
+                                colour = "gray"),
+          panel.grid.major.x = element_blank())
+```
 
 ## NYC Complaints by officer gender
 
@@ -284,4 +378,3 @@ chicago_complaints_by_offcier_race %>%
                                 colour = "gray"),
           panel.grid.major.x = element_blank())
 ```
-```{r NYC-}
