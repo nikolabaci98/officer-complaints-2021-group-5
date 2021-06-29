@@ -9,34 +9,34 @@ output:
 ---
 
 ```{r setup}
-library(tidyverse)
-library(lubridate)
-library(gganimate)
+suppressMessages(library(tidyverse))
+suppressMessages(library(lubridate))
+suppressMessages(library(gganimate))
 ```
 
 ## Small share of US police draw third of complaints in big cities
 #### Article by [FINANCIAL TIMES](https://www.ft.com/content/141182fc-7727-4af8-a555-5418fa46d09e)
 
 ## Overview of the article
-TODO: A summary of the article (I wish we could use the summary() function)
+The [article](https://www.ft.com/content/141182fc-7727-4af8-a555-5418fa46d09e) published
+by Financial Times on May 28, 2021, one year after the death of George Floyd, 
+tries to analyse the complaints that are filed against police officers in three major cities:
+NYC, Philadelphia, Chicago. The article points out that the ten percent of the officer with
+the most complaints received a third of all complaints during the period 2007-2017 for NYC and 
+Chicago and 2015-2021 for Philly. 
 
-## Workflow
-To ensure a smooth reading and quick understanding of the notebook, please take a
-moment to get familiar with the structure of the notebook.
-
-In the first section we read all the files for each of the cities.
-Then for each city we do the following:
-1. Data exploration and data wrangling - in order to graph the deciles of each city, we need to 
-modify the data and construct new tables to aid in achieving our goals.
-2. Plot the decies for each city
+In this notebook, we are trying to replicate these finding and achieve the same bar graphs as
+article. In addition, we expand the notebook with further analysis such as the gender and the
+race of the officers that received the complaints.
 
 ## Data
 
 Data for NYC can be found [here](https://github.com/new-york-civil-liberties-union/NYPD-Misconduct-Complaint-Database-Updated).
 
-Data for Chicago can be found [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-accused.csv.gz), [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-complaints.csv.gz) and [here](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/officer-filed-complaints__2017-09.csv.gz).
+Data for Chicago can be found [1](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-accused.csv.gz), [2](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-complaints.csv.gz), [3](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/officer-filed-complaints__2017-09.csv.gz) and
+[4](https://github.com/invinst/chicago-police-data/blob/master/data/unified_data/complaints/complaints-complainants.csv.gz).
 
-Data for Philadelphia can be found [1](), [2](), [3](), [4]() and [5]().
+Data for Philadelphia can be found [1](https://github.com/sdl60660/philly_police_complaints/blob/master/raw_data/ppd_complaints.csv), [2](https://github.com/sdl60660/philly_police_complaints/blob/master/raw_data/ppd_complaints_7-18.csv), [3](https://github.com/sdl60660/philly_police_complaints/blob/master/raw_data/ppd_complaint_disciplines.csv), [4](https://www.opendataphilly.org/dataset/police-complaints/resource/e7477284-0045-4f37-8aeb-182616f736e8) and [5](https://www.opendataphilly.org/dataset/police-complaints/resource/7f7d472f-c49c-4364-b6e0-3a079e6b7d7f).
 
 ```{r Data}
 nyc_data <- read.csv("data/nyc_misconduct_complaint_dataset.csv")
@@ -61,8 +61,10 @@ philly_sam_3 <- read.csv('data/philly_complaints_disciplines_sam.csv')
 
 ## New York City
 
-In the next chuck of code we create the necessary table to help us in creating the 
-graph for NYC data.
+Replication of NYC bar graph from the article. We first create the necessary
+features and tables, then we proceed to graphing.
+
+The resulting graph looks identical to the article. 
 
 ### NYC Data Wrangling
 
@@ -104,9 +106,9 @@ nyc_by_num_complaints <- nyc_by_num_complaints %>%
   summarize(total_complaints = (sum(num_of_complaints) / total_complaints) * 100)
 ```
 ### NYC Graphing
-Graph the deciles for NYC police complaint
 
-```{r NYC-Graph}
+```{r NYC-Graph, fig.align = 'center'}
+nyc_by_num_complaints
 
 nyc_by_num_complaints <-  nyc_by_num_complaints %>%
   mutate(color = c(rep(0, 9), 1)) # to help with the bar colors
@@ -181,7 +183,9 @@ Now we can graph the decile bars.
 Note: the data includes the only the citizen complaints that were registered on or after
 01/01/2007 and were closed before 01/01/2018.
 
-```{r Explore Chicago-Graph}
+```{r Explore Chicago-Graph, fig.align = 'center'}
+
+chicago_by_num_complaints
 
 chicago_by_num_complaints <-  chicago_by_num_complaints %>%
   mutate(color = c(rep(0, 9), 1))
@@ -253,7 +257,9 @@ philly_by_num_complaints <- philly_by_num_complaints %>%
 
 ### Philly Graphing
 
-```{r Philly-Graph}
+```{r Philly-Graph, fig.align = 'center'}
+
+philly_by_num_complaints
 
 philly_by_num_complaints <-  philly_by_num_complaints %>%
   mutate(color = c(rep(0, 9), 1))
@@ -272,15 +278,18 @@ philly_by_num_complaints %>%
           panel.grid.major.x = element_blank())
 ```
 
-## Extanded Analysis
+## Extended Analysis
 
 ### NYC Complaints by Officer Gender
 
-```{r NYC-Complaints-Gender}
+In this section we analyze the complaints by gender. The first graph shows
+the distribution of all complaints and the second graph shows the distribution
+of the 10th decile only (the officers with top 10% of complaints).
+```{r NYC-Complaints-Gender, fig.align = 'center'}
 
 nyc_complaint_by_gender <- nyc_data %>%
   group_by(OfficerID, ComplaintID, OfficerGender) %>%
-  summarize() %>% 
+  suppressMessages(summarize()) %>% 
   ungroup() %>%
   group_by(OfficerID) %>%
   summarize(num_of_complaints = n(), OfficerGender) %>%
@@ -336,14 +345,15 @@ to keep in mind is the distribution of race in the police force as well as popul
 of these cities. 
 Hypothetical example, if NYC population is composed of 80% white and 
 the police force has the same proportion of white officers, then it is more likely that
-the blow bars will show an overwhelming amount of complaints towards white officers.
+the below bars will show an overwhelming amount of complaints towards white officers.
 
+The results show that more than 50% of all complaints in NYC and Chicago go towards white officers
 #### NYC 
 
-```{r NYC-Complaints-By-Officer-Race}
+```{r NYC-Complaints-By-Officer-Race, fig.align = 'center'}
 nyc_complaints_by_officer_race <- nyc_data %>% 
   group_by(OfficerID, ComplaintID, OfficerRace) %>%
-  summarize() %>%
+  suppressMessages(summarize()) %>%
   ungroup()
 
 nyc_complaints_by_officer_race <- nyc_complaints_by_officer_race %>%
@@ -369,14 +379,14 @@ nyc_complaints_by_officer_race %>%
 The animation below shows the changes of the complaints that officers
 received, separated by their race, over the period 2007-2017.
 
-```{r NYC-Complaint-Animation-Over-Years}
+```{r NYC-Complaint-Animation-Over-Years, fig.align = 'center'}
 
 nyc_complaints_timeline <-  nyc_data %>%
   mutate(year = year(ReceivedDate)) %>%
   group_by(year, OfficerRace) %>%
   summarize(count = n())
 
-  plot_transition <- ggplot(data = nyc_complaints_timeline) +
+plot_transition <- ggplot(data = nyc_complaints_timeline) +
   geom_bar(aes(x = OfficerRace, y = count), stat = "identity", fill = "brown") +
   xlab("Officer Race") +
   ylab("Number of Complaints") +
@@ -394,7 +404,7 @@ animate(plot_transition, fps=10)
 
 #### Chicago
 
-```{r Chicago-Complaints-By-Officer-Race}
+```{r Chicago-Complaints-By-Officer-Race, fig.align = 'center'}
 chicago_officer_profiles <- read.csv("data/chicago_officer_profile.csv")
 chicago_officer_profiles <- chicago_officer_profiles %>%
   select(UID, race)
@@ -404,7 +414,7 @@ chicago_complaints_and_officer <- left_join(chicago_complaints, chicago_officer_
 
 chicago_complaints_by_offcier_race <- chicago_complaints_and_officer %>%
   group_by(UID, cr_id, race) %>%
-  summarize() %>%
+  suppressMessages(summarize()) %>%
   ungroup()
 
 chicago_complaints_by_offcier_race <- chicago_complaints_by_offcier_race %>%
@@ -434,10 +444,10 @@ In this section we separate officers by their race and observer the count of
 officers by the number of complaints they have.
 
 #### NYC
-```{r NYC-Complaint-Distribution-By-Race}
+```{r NYC-Complaint-Distribution-By-Race, fig.align = 'center'}
 nyc_complaints_distribution_by_officer_race <- nyc_data %>% 
   group_by(OfficerID, ComplaintID, OfficerRace) %>%
-  summarize() %>%
+  suppressMessages(summarize()) %>%
   ungroup
 
 nyc_complaints_distribution_by_officer_race <-  nyc_complaints_distribution_by_officer_race %>%
@@ -450,7 +460,7 @@ nyc_complaints_distribution_by_officer_race %>%
   labs(title = "NYC Complaint Distribution by Race") +
   xlab("Number of Complaints") +
   ylab("Number of Officers with X Complaints") +
-  facet_wrap(~ OfficerRace, scales = "free") +
+  facet_wrap(~ OfficerRace, scale = "free_y") +
   theme(panel.background = element_rect(fill = "white", colour = "white",
                                 size = 2, linetype = "solid"),
           panel.grid.major = element_line(size = 0.5, linetype = 'solid',
@@ -465,7 +475,7 @@ nyc_complaints_distribution_by_officer_race %>%
   labs(title = "NYC Complaint Distribution by Officer's Race") +
   xlab("Number of Complaints") +
   ylab("Number of Officers with X Complaints") +
-  facet_wrap(~ OfficerRace, scales = "free") +
+  facet_wrap(~ OfficerRace, scales = "free_y") +
   theme(panel.background = element_rect(fill = "white", colour = "white",
                                 size = 2, linetype = "solid"),
           panel.grid.major = element_line(size = 0.5, linetype = 'solid',
@@ -478,7 +488,7 @@ nyc_complaints_distribution_by_officer_race %>%
 
 #### Chicago
 
-```{r Chicago-Complaint-Distribution-By-Race}
+```{r Chicago-Complaint-Distribution-By-Race, fig.align = 'center'}
 
 chicago_complaints_distribution_by_officer_race <- chicago_complaints_and_officer %>% 
   group_by(UID, cr_id, race) %>%
@@ -495,7 +505,7 @@ chicago_complaints_distribution_by_officer_race %>%
   labs(title = "Chicago Complaint Distribution by Officer's Race") +
   xlab("Number of Complaints") +
   ylab("Number of Officers with X Complaints") +
-  facet_wrap(~ race, scales = "free") +
+  facet_wrap(~ race, scales = "free_y") +
   theme(panel.background = element_rect(fill = "white", colour = "white",
                                 size = 2, linetype = "solid"),
           panel.grid.major = element_line(size = 0.5, linetype = 'solid',
@@ -510,7 +520,7 @@ chicago_complaints_distribution_by_officer_race %>%
   labs(title = "Chicago Complaint Distribution by Race") +
   xlab("Number of Complaints") +
   ylab("Number of Officers with X Complaints") +
-  facet_wrap(~ race, scales = "free") +
+  facet_wrap(~ race, scales = "free_y") +
   theme(panel.background = element_rect(fill = "white", colour = "white",
                                 size = 2, linetype = "solid"),
           panel.grid.major = element_line(size = 0.5, linetype = 'solid',
@@ -522,9 +532,13 @@ chicago_complaints_distribution_by_officer_race %>%
 ```
 
 ### Distribution of Impacted Race by Officer Race
+Lastly, we try to understand the distribution of the citizens that filed a complaint in 
+NYC and Chicago during the 2007-2017 period.
+
+Results show that the black community is filing more complaints.
 
 #### NYC
-```{r NYC-Distribution-of-Complainants-by-Officer-Race}
+```{r NYC-Distribution-of-Complainants-by-Officer-Race, fig.align = 'center'}
 nyc_complaniant <- nyc_data %>%
   filter(ImpactedRace != "", ImpactedRace != "Unknown")
 
@@ -556,8 +570,8 @@ nyc_complaniant_distribution %>%
 
 #### Chicago
 
-```{r Chicago-Distribution-of-Complainants-by-Officer-Race}
-chicago_complaniant <- read.csv("data/complaints-complainants.csv") %>%
+```{r Chicago-Distribution-of-Complainants-by-Officer-Race, fig.align = 'center'}
+chicago_complaniant <- read.csv("data/chicago-complaints-complainants.csv") %>%
   mutate(cr_id = as.character(cr_id)) %>%
   select(cr_id, race)
 
